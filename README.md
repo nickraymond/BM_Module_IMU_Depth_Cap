@@ -71,37 +71,62 @@ Copy the following **CircuitPython libraries** into the `lib/` folder on your RP
 
 ---
 
-## **✩ Code Overview**
-### **1⃣ `SensorStats` Class**
-- Maintains **rolling statistics** for each sensor.
+## **✩ Data Logging and Transmission**
+### **1⃣ Spotter SD Card Logging**
+- The data collected is saved to the **Spotter SD card** under the directory:
+  ```
+  /Volumes/NO NAME/bm/node_id/tilt_data.log
+  ```
+- Example of a log file format without GPS fix:
+  ```
+  267290t | 123379t,1044,996948,22.5,5.00,-175.1,-1.0,142.9,0.05,0.13,-0.16
+  ```
+  - **Timestamp (millis)**
+  - **Capacitive sensor value**
+  - **Pressure (μmbar)**
+  - **Temperature (°C)**
+  - **Tilt (°)**
+  - **Roll, Pitch, Yaw (°)**
+  - **Acceleration X, Y, Z (m/s²)**
 
-### **2⃣ `calculate_tilt()` Function**
-- Computes **absolute tilt** based on **roll & pitch** angles.
+- Example of a log file format with GPS fix:
+  ```
+  2024-12-07T00:35:36.207Z | 124372t,1053,996948,22.5,5.00,-175.1,-1.0,142.9,0.05,0.14,-0.18
 
-### **3⃣ Main Loop**
-- Polls **capacitance, pressure, temperature, IMU angles, acceleration**.
-- Logs data & transmits aggregated results.
-- Runs **garbage collection (`gc.collect()`)** to free memory.
+  ```
+  - **Timestamp (Epoch time)**
+  - **Timestamp (millis)**
+  - **Capacitive sensor value**
+  - **Pressure (μmbar)**
+  - **Temperature (°C)**
+  - **Tilt (°)**
+  - **Roll, Pitch, Yaw (°)**
+  - **Acceleration X, Y, Z (m/s²)**
 
----
+### **2⃣ Aggregated Data Logging to SD**
+- The system aggregates data over a 5-minute period and saves it separately in:
+  ```
+  /data/tilt_monitoring/aggregated_stats.log
+  ```
+- Example format of aggregated data:
+  ```
+  1698759600, 2302.5, 5.3, 101322, 24.35, 180.6, -9.81
+  ```
+  - **Mean values over 5 minutes** for **pressure, temperature, tilt, etc.**
 
-## **✩ Configuration Options**
-Modify the following variables in `code.py`:
-
-| **Variable** | **Default Value** | **Purpose** |
-|-------------|----------------|-------------|
-| `SENSOR_POLL_INTERVAL_MS` | `1000` ms | Sensor poll interval (1 second) |
-| `DEFAULT_SENSOR_AGG_PERIOD_MS` | `5 * 60 * 1000` | Aggregation period (5 minutes) |
-| `pixel.brightness` | `0.3` | LED brightness |
-
----
-
-## **✩ Example Data Output**
-```
-DATA | Cap.: 2300 | Pres: 101325 μmbar | Temp: 24.3 °C | Tilt: 5.2° | Roll: 3.1° | Pitch: 2.0° | Yaw: 180.5° | Accel X: 0.02 | Accel Y: 0.01 | Accel Z: -9.81 | Delta: 1000 ms
-Publishing stats: 2300, 101325, 24.3, 5.2, 3.1, 2.0, 180.5, 0.02, 0.01, -9.81
-Free memory: 65328 bytes
-```
+### **3⃣ BM Serial Transmission Format**
+- The data is also sent over **BristlemouthSerial (BM)** via cellular.
+- Example of **raw BM serial data transmission**:
+  ```
+  $BM,1698759260,2300,101325,24.3,5.2,3.1,2.0,180.5,0.02,0.01,-9.81*7F
+  ```
+- When **parsed into ASCII**, it looks like:
+  ```
+  BM,1698759260,2300,101325,24.3,5.2,3.1,2.0,180.5,0.02,0.01,-9.81
+  ```
+  - `BM` → **Bristlemouth Protocol Identifier**
+  - **Timestamp, sensor values, tilt, acceleration**
+  - **Checksum (`*7F`)** for data integrity
 
 ---
 
