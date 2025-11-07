@@ -1,151 +1,271 @@
-# **Tilt Monitoring System - RP2040**
+# **Tilt + Depth Monitoring System — RP2040 + Bristlemouth**
 
-This project is a **tilt and environmental monitoring system** using an **RP2040 microcontroller**, a **BNO055 IMU**, and a **KellerLD pressure sensor**. It continuously measures **tilt, pressure, temperature, and acceleration**, logs the data, and transmits it using **BristlemouthSerial (BM)**.
-
----
-
-## **✩ Features**
-- ✅ **Real-time tilt measurement** using BNO055 IMU.
-- ✅ **Pressure & temperature monitoring** with KellerLD sensor.
-- ✅ **Capacitive touch sensing** for additional input.
-- ✅ **Statistical aggregation** for better data analysis.
-- ✅ **Data logging & transmission** via **BristlemouthSerial**.
-- ✅ **LED status indicators** for system states.
-- ✅ **Garbage collection optimization** for memory stability.
+A compact **tilt and environmental monitoring node** built around the **Adafruit QT Py RP2040**, a **BNO055 IMU**, and a **KellerLD pressure sensor**.  
+It logs **tilt, pressure, temperature, and capacitive data**, writes to the **Spotter SD card**, and transmits periodic summaries through the **Bristlemouth Bus (BM)** network.
 
 ---
 
-## **✩ Hardware Components**
-| Component            | Purpose |
-|----------------------|---------|
-| **RP2040 Board**     | Main microcontroller (Raspberry Pi Pico or similar) |
-| **BNO055 IMU**       | Measures Euler angles (yaw, pitch, roll) & acceleration |
-| **KellerLD Sensor**  | Measures **pressure** and **temperature** |
-| **BristlemouthSerial** | Handles logging and transmitting data |
-| **NeoPixel LED**     | Provides **visual feedback** (status indicators) |
-| **Capacitive Touch Sensor** | Reads input for interactive control |
+## ✹ Core Features
+- **Real-time orientation** from BNO055 (roll, pitch, yaw, tilt)
+- **Depth and temperature** via KellerLD pressure sensor
+- **Capacitive input** sensing for water/contact detection
+- **Configurable sample and summary periods**
+- **On-demand calibration & orientation reset** over BM Bus
+- **Local SD logging + BM transmission** of aggregated data
+- **LED status indication** for active, error, and transmit states
+- **Robust JSON-based configuration and persistent offsets**
 
 ---
 
-## **✩ Setup & Wiring**
-### **1⃣ Wiring Diagram**
-| **RP2040 Pin** | **Component** | **Description** |
-|---------------|--------------|----------------|
-| `A0` | Capacitive Touch | Reads capacitive input |
-| `I2C SDA` | BNO055 & KellerLD | Sensor communication |
-| `I2C SCL` | BNO055 & KellerLD | Sensor communication |
-| `NEOPIXEL` | LED | Status indicator |
-| `TX/RX` | BristlemouthSerial | Data transmission |
+## ✹ Hardware Overview
 
-### **2⃣ Install Required Libraries**
-Copy the following **CircuitPython libraries** into the `lib/` folder on your RP2040:
-- `adafruit_bno055.mpy`
-- `KellerLD.py`
-- `bm_serial.py`
-- `neopixel.mpy`
-- `touchio.mpy`
-- `math.mpy`
-- `gc.mpy`
+| Component | Function |
+|------------|-----------|
+| **Adafruit QT Py RP2040** | Main MCU |
+| **BNO055 IMU (I²C)** | Roll, pitch, yaw, tilt |
+| **KellerLD Pressure Sensor (I²C)** | Pressure + temperature |
+| **Capacitive Sensor (A0)** | Water/Touch input |
+| **NeoPixel (on-board)** | Status indicator |
+| **BristlemouthSerial (UART)** | Command + telemetry bus |
 
----
-
-## **✩ How It Works**
-1. **Sensor Initialization**
-   - Initializes **BNO055** (IMU) and **KellerLD** (pressure & temperature).
-   - **Capacitive sensor** is set up for user interaction.
-
-2. **Data Collection & Processing**
-   - Polls data **every 1 second** (configurable).
-   - Computes **tilt angle** from roll and pitch.
-   - Updates running **statistical values** (mean, standard deviation).
-
-3. **Data Logging & Transmission**
-   - Logs data locally in **tilt_data.log**.
-   - Transmits aggregated stats every **5 minutes**.
-
-4. **LED Status Indication**
-   - **Green (✅ Success):** System running correctly.
-   - **Red (❌ Error):** Sensor failure.
-   - **Blue (🔄 Working):** Active data polling.
-   - **Cyan (🛡️ Transmitting):** Sending data.
+### Wiring Summary
+| RP2040 Pin | Connection | Description |
+|-------------|-------------|-------------|
+| `A0` | Capacitive sensor | Analog input |
+| `SDA` / `SCL` | IMU + Keller | Shared I²C bus |
+| `TX` / `RX` | Bristlemouth Bus | Serial data link |
+| `NEOPIXEL` | On-board LED | System feedback |
 
 ---
 
-## **✩ Data Logging and Transmission**
-### **1⃣ Spotter SD Card Logging**
-- The data collected is saved to the **Spotter SD card** under the directory:
-  ```
-  /Volumes/NO NAME/bm/node_id/tilt_data.log
-  ```
-- Example of a log file format without GPS fix:
-  ```
-  267290t | 123379t,1044,996948,22.5,5.00,-175.1,-1.0,142.9,0.05,0.13,-0.16
-  ```
-  - **Timestamp (millis)**
-  - **Capacitive sensor value**
-  - **Pressure (μmbar)**
-  - **Temperature (°C)**
-  - **Tilt (°)**
-  - **Roll, Pitch, Yaw (°)**
-  - **Acceleration X, Y, Z (m/s²)**
+## ✹ Data Flow Summary
 
-- Example of a log file format with GPS fix:
-  ```
-  2024-12-07T00:35:36.207Z | 124372t,1053,996948,22.5,5.00,-175.1,-1.0,142.9,0.05,0.14,-0.18
+| Task | Frequency | Output |
+|------|------------|--------|
+| Sensor sampling | Configurable (`sample_period_s`) | Raw CSV (Spotter SD) + BM `spotter/printf` |
+| Aggregation summary | Configurable (`summary_period_s`) | Stats (Spotter SD + BM uplink) |
+| Calibration & offsets | On command | Stored in `/config/system.json` |
 
-  ```
-  - **Timestamp (Epoch time)**
-  - **Timestamp (millis)**
-  - **Capacitive sensor value**
-  - **Pressure (μmbar)**
-  - **Temperature (°C)**
-  - **Tilt (°)**
-  - **Roll, Pitch, Yaw (°)**
-  - **Acceleration X, Y, Z (m/s²)**
-
-### **2⃣ Aggregated Data Logging to SD**
-- The system aggregates data over a 5-minute period and saves it separately in:
-  ```
-  /data/tilt_monitoring/aggregated_stats.log
-  ```
-- Example format of aggregated data:
-  ```
-  1698759600, 2302.5, 5.3, 101322, 24.35, 180.6, -9.81
-  ```
-  - **Mean values over 5 minutes** for **pressure, temperature, tilt, etc.**
-
-### **3⃣ BM Serial Transmission Format**
-- The data is also sent over **BristlemouthSerial (BM)** via cellular.
-- Example of **raw BM serial data transmission**:
-  ```
-  $BM,1698759260,2300,101325,24.3,5.2,3.1,2.0,180.5,0.02,0.01,-9.81*7F
-  ```
-- When **parsed into ASCII**, it looks like:
-  ```
-  BM,1698759260,2300,101325,24.3,5.2,3.1,2.0,180.5,0.02,0.01,-9.81
-  ```
-  - `BM` → **Bristlemouth Protocol Identifier**
-  - **Timestamp, sensor values, tilt, acceleration**
-  - **Checksum (`*7F`)** for data integrity
+All configuration and calibration data persist between power cycles.
 
 ---
 
-## **✩ Future Improvements**
-💚 **Add SD card logging** for long-term data storage.  
-💚 **Implement sleep mode** for power efficiency.  
-💚 **Expand sensor compatibility** (e.g., GPS, depth sensors).  
+## ✹ LED Status Reference
+
+| Color | Meaning |
+|--------|----------|
+| 🔵 Blue | Sampling / working |
+| 🟢 Green | Normal / success |
+| 🔴 Red | Sensor or config error |
+| ⚪ White | LED on command |
+| 🟣 Cyan | Transmitting summary (auto-restore) |
 
 ---
 
-## **✩ License**
-This project is open-source under the **MIT License**.  
+## ✹ BM Bus Commands
+
+You can control and query the device using these BM topics:
+
+| Command Topic | Payload Example | Description |
+|----------------|----------------|--------------|
+| `device/led` | `{"led":"on","color":"white"}` | Turn LED on/off/blink in chosen color |
+| `device/config/get` | `{}` | Return full config (JSON) |
+| `device/config/set` | `{"sample_period_s":1.0,"summary_period_s":300.0}` | Update runtime + persistent config |
+| `device/sample_period/set` | `{"sample_period_s":2.0}` | Change raw sampling interval |
+| `device/summary_period/set` | `{"summary_period_s":120.0}` | Change aggregation interval |
+| `device/sample_period/get` | `{}` | Report current sample period |
+| `device/summary_period/get` | `{}` | Report current summary period |
+| `device/rates/get` | `{}` | Combined sample + summary period report |
+| `sensor/depth/test` | `{}` | Read Keller pressure + temperature once |
+| `sensor/imu/test` | `{}` | Read IMU roll, pitch, yaw, tilt once |
+| `sensor/cap/test` | `{}` | Read capacitive sensor once |
+| `sensor/all/test` | `{}` | Read all sensors once |
+| `sensor/all/offsets` | `{}` | Report stored calibration + offsets |
+| `imu/calibration/start` | `{}` | Begin IMU calibration routine |
+| `imu/quaternion/target` | `{"target_deg":[45,35,0]}` | Apply quaternion offset to target pose |
+
+All commands generate ACK messages via `spotter/printf` visible on the BM Bus.
 
 ---
 
-### **📌 Notes**
-- **Ensure all libraries are correctly installed.**
-- **Check wiring carefully** before running the program.
-- **Use `REPL` for debugging output** in CircuitPython.
+## ✹ Data Format
 
-🚀 **Enjoy your RP2040 tilt monitoring system!** 🚀
+### Raw Data logged to SD (every `sample_period_s`)
 
+| time_ms | pressure | temperature | cap_value | roll  | pitch | yaw   | tilt  |
+| ------- | -------- | ----------- | --------- | ----- | ----- | ----- | ----- |
+| ms      | dbar     | °C          | counts    | deg   | deg   | deg   | deg   |
+| byte    | float    | float       | byte      | float | float | float | float |
+
+``` 
+time_ms,pressure,temperature,cap_value,roll,pitch,yaw,tilt
+82451,1.012,24.95,945,-42.3,0.0,4.5,42.3
+```
+
+### Aggregated summary logged to SD (every `summary_period_s`)
+| tag                | time_ms | pressure_n | pressure_mean | pressure_stdev | temperature_n | temperature_mean | temperature_stdev | capacitive_n | capacitive_mean | capacitive_stdev | roll_n  | roll_mean | roll_stdev | pitch_n | pitch_mean | pitch_stdev | yaw_n   | yaw_mean | yaw_stdev | tilt_n  | tilt_mean | tilt_stdev |
+| ------------------ | ------- | ---------- | ------------- | -------------- | ------------- | ---------------- | ----------------- | ------------ | --------------- | ---------------- | ------- | --------- | ---------- | ------- | ---------- | ----------- | ------- | -------- | --------- | ------- | --------- | ---------- |
+| literal `"IMU_00"` | ms      | samples    | dbar          | dbar           | samples       | °C               | °C                | samples      | counts          | counts           | samples | deg       | deg        | samples | deg        | deg         | samples | deg      | deg       | samples | deg       | deg        |
+| (string)           | byte    | byte       | float         | float          | byte          | float            | float             | byte         | float           | float            | byte    | float     | float      | byte    | float      | float       | byte    | float    | float     | byte    | float     | float      |
+
+```
+IMU_00,82451,60,1.013,0.005,60,24.95,0.12,60,43.1,1.4,60,-42.4,0.9,60,0.1,0.1,60,4.4,1.0
+```
+
+
+
+### Transmission (every `summary_period_s`)
+- Summary: logged + transmitted via `spotter_tx()` (BM cellular uplink)
+- Same as aggregated summary format above.
+
+## ✹ Configuration File
+
+All persistent settings and offsets are stored on the RP2040 as:
+
+``` 
+/config/system.json
+
+
+Example contents:
+```json
+{
+  "sample_period_s": 1.0,
+  "summary_period_s": 300.0,
+  "imu_offsets": {
+    "magnetometer": [-682, -420, -354],
+    "gyroscope": [0, -3, 0],
+    "accelerometer": [-25, 83, -35]
+  },
+  "quaternion_target_deg": [0, 0, 0]
+}
+
+```
+
+## ✹ Maintenance & File Access
+
+The system uses a dual-mode boot.py:
+
+- Normal run (no USB) → filesystem writable, device logs + saves configs
+
+- Maintenance mode (A3 → GND at boot) → USB visible for host editing (read-only for code)
+
+Use REPL (Ctrl + C → >>>) or BM commands to verify filesystem access.
+
+Ensure /config exists on fresh devices before running.
+
+## Cheat Sheet of BM Commands
+## ✹ BM Bus One-Liners (Copy & Paste)
+
+> Format: `bm pub <topic> <json> text 0`  
+> Each command prints an ACK on the BM bus via `spotter/printf`.
+
+### LED / Status
+- **LED ON (white)**  
+  `bm pub device/led {"led":"on","color":"white"} text 0`
+
+
+- **LED OFF**  
+  `bm pub device/led {"led":"off"} text 0`
+
+
+- **LED BLINK (green, 500 ms, 5x)**  
+  `bm pub device/led {"led":"blink","color":"success","period_ms":500,"count":5} text 0`
+
+---
+
+### Config — Get / Set
+- **Get full config**  
+  `bm pub device/config/get {} text 0`
+
+
+- **Set both periods (examples: 1s sample, 300s summary)**  
+  `bm pub device/config/set {"sample_period_s":1.0,"summary_period_s":300.0} text 0`  
+
+
+
+- **Get sample period**  
+  `bm pub device/sample_period/get {} text 0`  
+
+
+
+- **Set sample period (2.5 s)**  
+  `bm pub device/sample_period/set {"sample_period_s":2.5} text 0`  
+
+
+
+- **Get summary period**  
+  `bm pub device/summary_period/get {} text 0`  
+
+
+
+- **Set summary period (120 s)**  
+  `bm pub device/summary_period/set {"summary_period_s":120} text 0`  
+
+
+
+- **Get both rates**  
+  `bm pub device/rates/get {} text 0`  
+
+
+
+---
+
+### Sensors — Quick Tests
+- **Depth/Temp test (Keller)**  
+  `bm pub sensor/depth/test {} text 0`  
+
+
+
+- **IMU test (RPYT)**  
+  `bm pub sensor/imu/test {} text 0`  
+
+
+
+- **Capacitive test**  
+  `bm pub sensor/cap/test {} text 0`  
+
+
+
+- **All sensors**  
+  `bm pub sensor/all/test {} text 0`  
+
+
+
+- **Report stored offsets**  
+  `bm pub sensor/all/offsets {} text 0`  
+
+
+
+---
+
+### IMU — Calibration & Orientation
+- **Start IMU calibration (guided)**  
+  `bm pub imu/calibration/start {} text 0`  
+  
+
+- _ACKs:_ progress like `CAL mag=.../3 accel=.../3 gyro=.../3`, then `CAL SAVED: mag=(...), gyro=(...), accel=(...)`  
+  _(If filesystem RO/missing `/config`, expect `CAL ERR: ...`.)_
+
+
+
+- **Zero orientation to current pose**  
+  `bm pub imu/quaternion/zero {} text 0`  
+
+
+
+- **Set orientation target (R,P,Y in degrees)**  
+  `bm pub imu/quaternion/target {"target_deg":[45,35,0]} text 0`  
+
+
+
+---
+
+### Filesystem (Optional health check)
+- **Writable check**  
+  `bm pub device/fs/test {} text 0`  
+  _ACK:_ `FS TEST: OK (writable)` _or_ `FS TEST: FAIL -> ...`
+
+**Notes**
+> - Period keys: `sample_period_s`, `summary_period_s` (seconds).  
+> - All ACKs are emitted via `spotter/printf`; summaries also use `spotter_tx` for uplink.  
+> - If you see `... ERR: save failed`, ensure `/config` exists and the device is in **device-write mode** (USB hidden or `boot.py` jumper set).

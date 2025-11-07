@@ -1,0 +1,1 @@
+{"sd_low_hz": 1, "tx_low_hz": 0.4, "imu": {"calibration_offsets": {"gyroscope": [0, -3, -1], "magnetometer": [-682, -420, -354], "accelerometer": [-25, 83, -35]}}, "summary_period_s": 300.0, "orientation": {"q_offset": [0.80165, -0.0236821, -0.0131838, 0.597179]}, "sample_period_s": 5.0, "sd_high_hz": 40, "imu_enabled": true, "tx_high_hz": 1}
